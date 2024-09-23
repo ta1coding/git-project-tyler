@@ -53,7 +53,6 @@ public class Git {
         String sha1Name = sha1 + ".file";
         String objectsDirPath = "git/objects/";
         File newFile = new File(objectsDirPath + sha1Name);
-
         newFile.createNewFile();
 
         InputStream in;
@@ -66,7 +65,7 @@ public class Git {
             out.write(current);
         }
 
-        in.close(); 
+        in.close();
         out.close();
 
         String indexFilePath = "git/index";
@@ -75,7 +74,7 @@ public class Git {
         writer.newLine();
 
     }
-    
+
     // https://gist.github.com/zeroleaf/6809843
     public String sha1Code(String filePath) throws IOException, NoSuchAlgorithmException {
         try (FileInputStream fileInputStream = new FileInputStream(filePath); DigestInputStream digestInputStream = new DigestInputStream(fileInputStream, MessageDigest.getInstance("SHA-1"))) {
