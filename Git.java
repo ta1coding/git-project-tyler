@@ -1,24 +1,23 @@
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.security.DigestInputStream;
+import java.math.BigInteger;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class Git {
 
-    public static void main(String[] args) {
-
-    }
-
     public void init() throws IOException {
-        String gitDirPath = "git";
+        String gitDirPath = "./git";
         String objectsDirPath = gitDirPath + "/objects";
         String indexFilePath = gitDirPath + "/index";
 
@@ -26,81 +25,86 @@ public class Git {
         File objectsDir = new File(objectsDirPath);
         File indexFile = new File(indexFilePath);
 
-        if (gitDir.exists()) {
+        if (gitDir.exists() && objectsDir.exists() && indexFile.exists()) {
             System.out.println("Git Repository already exists");
         } else {
-            gitDir.mkdir();
-
-            if (objectsDir.exists()) {
-                System.out.println("Objects directory already exists");
-            } else {
-                objectsDir.mkdir();
-                System.out.println("Created Objects directory");
+            if (!gitDir.exists()) {
+                gitDir.mkdir();
             }
 
-            if (indexFile.exists()) {
-                System.out.println("Index file already exists");
-            } else {
+            if (!objectsDir.exists()) {
+                objectsDir.mkdir();
+            }
+
+            if (!indexFile.exists()) {
                 indexFile.createNewFile();
-                System.out.println("Created Index file");
             }
         }
     }
 
     public void makeBlob(String filename) throws Exception {
         File file = new File(filename);
-        String sha1 = sha1Code(filename);
-        String sha1Name = sha1 + ".file";
+        String sha1 = Sha1Hash(file);
         String objectsDirPath = "git/objects/";
-        File newFile = new File(objectsDirPath + sha1Name);
+        File newFile = new File(objectsDirPath + sha1);
+
+        if (newFile.exists()) {
+            System.out.println("The file has already been turned into a blob.");
+            return;
+        }
+
         newFile.createNewFile();
 
-        InputStream in;
-        OutputStream out;
-        in = new FileInputStream(file);
-        out = new FileOutputStream(newFile);
+        InputStream input = new FileInputStream(file);
+        OutputStream output = new FileOutputStream(newFile);
 
         int current;
-        while ((current = in.read()) != -1) {
-            out.write(current);
+        while ((current = input.read()) != -1) {
+            output.write(current);
         }
 
-        in.close();
-        out.close();
+        input.close();
+        output.close();
 
         String indexFilePath = "git/index";
-        BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath));
-        writer.write(sha1 + " " + filename);
-        writer.newLine();
 
-    }
-
-    // https://gist.github.com/zeroleaf/6809843
-    public String sha1Code(String filePath) throws IOException, NoSuchAlgorithmException {
-        try (FileInputStream fileInputStream = new FileInputStream(filePath); DigestInputStream digestInputStream = new DigestInputStream(fileInputStream, MessageDigest.getInstance("SHA-1"))) {
-
-            byte[] bytes = new byte[1024];
-            // Read all file content
-            while (digestInputStream.read(bytes) > 0) {
-                // Reading file content, digest is updated automatically
-            }
-
-            // Get the digest from the DigestInputStream
-            byte[] resultByteArray = digestInputStream.getMessageDigest().digest();
-            return bytesToHexString(resultByteArray);
+        if (isAlreadyInIndex(indexFilePath, sha1)) {
+            System.out.println("The file is already in index");
+            return;
+        }
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
+            writer.write(sha1 + " " + filename);
+            writer.newLine();
         }
     }
 
-    // https://gist.github.com/zeroleaf/6809843
-    public static String bytesToHexString(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            int value = b & 0xFF;
-            if (value < 16) {
-                sb.append("0");
+    private boolean isAlreadyInIndex(String indexFilePath, String sha1) throws IOException {
+        File indexFile = new File(indexFilePath);
+        try (BufferedReader reader = new BufferedReader(new FileReader(indexFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith(sha1)) {
+                    return true;
+                }
             }
-            sb.append(Integer.toHexString(value).toUpperCase());
         }
-        return sb.toString();
+
+        return false;
+    }
+
+    // https://www.geeksforgeeks.org/sha-1-hash-in-java/
+    public String Sha1Hash(File file) {
+        try {
+            MessageDigest digester = MessageDigest.getInstance("SHA-1");
+            byte[] sha1bytes = digester.digest(Files.readAllBytes(file.toPath()));
+            BigInteger sha1data = new BigInteger(1, sha1bytes);
+            String hash = sha1data.toString(16);
+            while (hash.length() < 40) {
+                hash = "0" + hash;
+            }
+            return hash;
+        } catch (IOException | NoSuchAlgorithmException e) {
+        }
+        return null;
     }
 }
