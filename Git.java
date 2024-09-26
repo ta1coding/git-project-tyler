@@ -1,10 +1,8 @@
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,52 +42,72 @@ public class Git {
 
     public void makeBlob(String filename) throws Exception {
         File file = new File(filename);
-        String sha1 = Sha1Hash(file);
-        String objectsDirPath = "git/objects/";
-        File newFile = new File(objectsDirPath + sha1);
 
-        if (newFile.exists()) {
-            System.out.println("The file has already been turned into a blob.");
-            return;
+        if (!file.exists()) {
+            throw new IOException("DNE: " + filename);
         }
 
-        newFile.createNewFile();
+        if (file.isFile()) {
+            String sha1 = Sha1Hash(file);
+            String objectsDirPath = "git/objects/";
+            File newFile = new File(objectsDirPath + sha1);
 
-        InputStream input = new FileInputStream(file);
-        OutputStream output = new FileOutputStream(newFile);
+            if (!newFile.exists()) {
+                newFile.createNewFile();
 
-        int current;
-        while ((current = input.read()) != -1) {
-            output.write(current);
-        }
+                try (InputStream input = new FileInputStream(file); OutputStream output = new FileOutputStream(newFile)) {
 
-        input.close();
-        output.close();
-
-        String indexFilePath = "git/index";
-
-        if (isAlreadyInIndex(indexFilePath, sha1)) {
-            System.out.println("The file is already in index");
-            return;
-        }
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
-            writer.write(sha1 + " " + filename);
-            writer.newLine();
-        }
-    }
-
-    private boolean isAlreadyInIndex(String indexFilePath, String sha1) throws IOException {
-        File indexFile = new File(indexFilePath);
-        try (BufferedReader reader = new BufferedReader(new FileReader(indexFile))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith(sha1)) {
-                    return true;
+                    int current;
+                    while ((current = input.read()) != -1) {
+                        output.write(current);
+                    }
                 }
             }
-        }
 
-        return false;
+            String indexFilePath = "git/index";
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
+                writer.write("blob " + sha1 + " " + filename);
+                writer.newLine();
+            }
+
+            System.out.println("Blob created for file: " + filename);
+        } else if (file.isDirectory()) {
+            File[] filesAndDirs = file.listFiles();
+            if (filesAndDirs == null) {
+                throw new IOException("Nun inside: " + filename);
+            }
+
+            StringBuilder treeContent = new StringBuilder();
+            for (File child : filesAndDirs) {
+                makeBlob(child.getPath());
+
+                String sha1 = Sha1Hash(child);
+                if (child.isFile()) {
+                    treeContent.append("blob ").append(sha1).append(" ").append(child.getName()).append("\n");
+                } else if (child.isDirectory()) {
+                    treeContent.append("tree ").append(sha1).append(" ").append(child.getName()).append("\n");
+                }
+            }
+
+            byte[] contentBytes = treeContent.toString().getBytes();
+            String treeSha1 = Sha1Hash(contentBytes);
+            String objectsDirPath = "git/objects/";
+            File treeFile = new File(objectsDirPath + treeSha1);
+
+            if (!treeFile.exists()) {
+                try (OutputStream output = new FileOutputStream(treeFile)) {
+                    output.write(contentBytes);
+                }
+            }
+
+            String indexFilePath = "git/index";
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
+                writer.write("tree " + treeSha1 + " " + filename);
+                writer.newLine();
+            }
+
+            System.out.println("Tree created for directory: " + filename);
+        }
     }
 
     // https://www.geeksforgeeks.org/sha-1-hash-in-java/
@@ -106,5 +124,14 @@ public class Git {
         } catch (IOException | NoSuchAlgorithmException e) {
         }
         return null;
+    }
+
+    public String Sha1Hash(byte[] contentBytes) {
+        BigInteger sha1data = new BigInteger(1, contentBytes);
+        String hash = sha1data.toString(16);
+        while (hash.length() < 40) {
+            hash = "0" + hash;
+        }
+        return hash;
     }
 }
