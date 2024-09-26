@@ -1,10 +1,8 @@
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,48 +46,29 @@ public class Git {
         String objectsDirPath = "git/objects/";
         File newFile = new File(objectsDirPath + sha1);
 
-        if (newFile.exists()) {
+        if (!newFile.exists()) {
+            newFile.createNewFile();
+
+            InputStream input = new FileInputStream(file);
+            OutputStream output = new FileOutputStream(newFile);
+
+            int current;
+            while ((current = input.read()) != -1) {
+                output.write(current);
+            }
+
+            input.close();
+            output.close();
+        } else {
             System.out.println("The file has already been turned into a blob.");
-            return;
         }
-
-        newFile.createNewFile();
-
-        InputStream input = new FileInputStream(file);
-        OutputStream output = new FileOutputStream(newFile);
-
-        int current;
-        while ((current = input.read()) != -1) {
-            output.write(current);
-        }
-
-        input.close();
-        output.close();
 
         String indexFilePath = "git/index";
 
-        if (isAlreadyInIndex(indexFilePath, sha1)) {
-            System.out.println("The file is already in index");
-            return;
-        }
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
             writer.write(sha1 + " " + filename);
             writer.newLine();
         }
-    }
-
-    private boolean isAlreadyInIndex(String indexFilePath, String sha1) throws IOException {
-        File indexFile = new File(indexFilePath);
-        try (BufferedReader reader = new BufferedReader(new FileReader(indexFile))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith(sha1)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     // https://www.geeksforgeeks.org/sha-1-hash-in-java/
