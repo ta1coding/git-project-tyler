@@ -43,10 +43,18 @@ public class Git {
     public void makeBlob(String filename) throws Exception {
         File file = new File(filename);
         String sha1 = Sha1Hash(file);
+
+        String type;
+        if (file.isDirectory()) {
+            type = "tree";
+        } else {
+            type = "blob";
+        }
+
         String objectsDirPath = "git/objects/";
         File newFile = new File(objectsDirPath + sha1);
 
-        if (!newFile.exists()) {
+        if (type.equals("blob") && !newFile.exists()) {
             newFile.createNewFile();
 
             InputStream input = new FileInputStream(file);
@@ -59,14 +67,11 @@ public class Git {
 
             input.close();
             output.close();
-        } else {
-            System.out.println("The file has already been turned into a blob.");
         }
 
         String indexFilePath = "git/index";
-
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
-            writer.write(sha1 + " " + filename);
+            writer.write(type + " : " + sha1 + " : " + filename);
             writer.newLine();
         }
     }
