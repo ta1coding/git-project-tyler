@@ -42,37 +42,71 @@ public class Git {
 
     public void makeBlob(String filename) throws Exception {
         File file = new File(filename);
-        String sha1 = Sha1Hash(file);
 
-        String type;
-        if (file.isDirectory()) {
-            type = "tree";
-        } else {
-            type = "blob";
+        if (!file.exists()) {
+            throw new IOException("DNE: " + filename);
         }
 
-        String objectsDirPath = "git/objects/";
-        File newFile = new File(objectsDirPath + sha1);
+        if (file.isFile()) {
+            String sha1 = Sha1Hash(file);
+            String objectsDirPath = "git/objects/";
+            File newFile = new File(objectsDirPath + sha1);
 
-        if (type.equals("blob") && !newFile.exists()) {
-            newFile.createNewFile();
+            if (!newFile.exists()) {
+                newFile.createNewFile();
 
-            InputStream input = new FileInputStream(file);
-            OutputStream output = new FileOutputStream(newFile);
+                try (InputStream input = new FileInputStream(file); OutputStream output = new FileOutputStream(newFile)) {
 
-            int current;
-            while ((current = input.read()) != -1) {
-                output.write(current);
+                    int current;
+                    while ((current = input.read()) != -1) {
+                        output.write(current);
+                    }
+                }
             }
 
-            input.close();
-            output.close();
-        }
+            String indexFilePath = "git/index";
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
+                writer.write("blob " + sha1 + " " + filename);
+                writer.newLine();
+            }
 
-        String indexFilePath = "git/index";
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
-            writer.write(type + " : " + sha1 + " : " + filename);
-            writer.newLine();
+            System.out.println("Blob created for file: " + filename);
+        } else if (file.isDirectory()) {
+            File[] filesAndDirs = file.listFiles();
+            if (filesAndDirs == null) {
+                throw new IOException("Nun inside: " + filename);
+            }
+
+            StringBuilder treeContent = new StringBuilder();
+            for (File child : filesAndDirs) {
+                makeBlob(child.getPath());
+
+                String sha1 = Sha1Hash(child);
+                if (child.isFile()) {
+                    treeContent.append("blob ").append(sha1).append(" ").append(child.getName()).append("\n");
+                } else if (child.isDirectory()) {
+                    treeContent.append("tree ").append(sha1).append(" ").append(child.getName()).append("\n");
+                }
+            }
+
+            byte[] contentBytes = treeContent.toString().getBytes();
+            String treeSha1 = Sha1Hash(contentBytes);
+            String objectsDirPath = "git/objects/";
+            File treeFile = new File(objectsDirPath + treeSha1);
+
+            if (!treeFile.exists()) {
+                try (OutputStream output = new FileOutputStream(treeFile)) {
+                    output.write(contentBytes);
+                }
+            }
+
+            String indexFilePath = "git/index";
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(indexFilePath, true))) {
+                writer.write("tree " + treeSha1 + " " + filename);
+                writer.newLine();
+            }
+
+            System.out.println("Tree created for directory: " + filename);
         }
     }
 
@@ -90,5 +124,14 @@ public class Git {
         } catch (IOException | NoSuchAlgorithmException e) {
         }
         return null;
+    }
+
+    public String Sha1Hash(byte[] contentBytes) {
+        BigInteger sha1data = new BigInteger(1, contentBytes);
+        String hash = sha1data.toString(16);
+        while (hash.length() < 40) {
+            hash = "0" + hash;
+        }
+        return hash;
     }
 }

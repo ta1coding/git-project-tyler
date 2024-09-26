@@ -2,3 +2,5 @@
 .DS_Store
 index
 objects
+*.txt
+GitTester.java
